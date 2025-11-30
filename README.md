@@ -1,120 +1,105 @@
 # Networks_Final_Project_AlanUrquieta
 This project is a mini distributed computing system over a network using 3 Azure VMS.
 
-📌 Project Overview
+# Distributed Computing with Python Sockets on Azure Virtual Machines
 
-The system consists of:
+This project demonstrates a lightweight distributed computing system using three Azure Virtual Machines connected inside the same virtual network. One VM acts as the **head node**, and two VMs act as **worker nodes**. The head node sends tasks to workers over TCP sockets, workers compute results, and the head aggregates the results.
 
-1 Head Node
+---
 
-Runs head_controller.py
+# 📡 1. Azure Setup
 
-Sends tasks to workers
+## 1.1 Create a Resource Group
+- Azure Portal → Resource groups → Create
+- Name: `cluster-rg`
+- Region: (e.g., Central US)
 
-Collects results
+## 1.2 Create a Virtual Network (VNet)
+- Name: `cluster-vnet`
+- Address space: `10.0.0.0/16`
+- Subnet:
+  - Name: `cluster-subnet`
+  - Range: `10.0.0.0/24`
 
-Measures serial vs. distributed performance
+## 1.3 Create the Virtual Machines
+Create **three VMs**:
 
-2 Worker Nodes
+| VM Name       | Role        | Private IP   | Public IP |
+|---------------|-------------|--------------|-----------|
+| project-head  | Head Node   | 10.0.0.10    | Yes       |
+| worker-1      | Worker Node | 10.0.0.11    | No        |
+| worker-2      | Worker Node | 10.0.0.12    | No        |
 
-Each runs worker_server.py
+### VM Settings:
+- Image: Ubuntu Server 22.04 LTS
+- Size: Free/cheap tier OK (B1s/B1ms)
+- Authentication: SSH key
+- VNet: `cluster-vnet`
+- Subnet: `cluster-subnet`
 
-Listens on TCP port 5000
+### Set Private IP (after VM creation)
+Azure → VM → **Networking** → NIC → IP configurations → Set to **Static** and assign the correct private IP.
 
-Receives tasks and returns computed results
+---
 
-The goal is to show how distributed computing can be implemented manually using sockets, demonstrating fundamental networking concepts such as TCP communication, message passing, IP addressing, and parallelization.
+# 🧰 2. Connect to VMs via VS Code
 
-🖥 Network Setup
+1. Install VS Code extension: **Remote - SSH**
+2. Add this to your SSH config:
+Host project-head
+HostName <HEAD_PUBLIC_IP>
+User alan
+IdentityFile ~/.ssh/<your-key>.pem
+3. Connect using:SSH from the head node to workers:
+   - ssh alan@10.0.0.11
+   - ssh alan@10.0.0.12
 
-All VMs were deployed on Azure:
+---
 
-Role	Private IP	Port Used
-Head Node	10.0.0.10	Connects to workers
-Worker 1	10.0.0.11	TCP 5000
-Worker 2	10.0.0.12	TCP 5000
+# 🐍 3. Install Python on Each VM
 
-Azure automatically handles routing inside the Virtual Network (VNet).
+Run on *all three* VMs:
 
-📂 File Structure
-/cluster_project
-│
-├── head_controller.py   # Sends tasks, collects results
-├── worker_server.py     # Worker server listening on TCP port 5000
-└── README.md
+```bash
+sudo apt update
+sudo apt install python3 python3-pip -y
+```
 
-⚙️ Requirements
+---
 
-Python 3.x (Ubuntu Server 22.04)
+# 4. Worker Server Setup
 
-Azure Virtual Machines (free-tier acceptable)
+1. Create the server script:
+```bash
+mkdir ~/cluster_project
+cd ~/cluster_project
+nano worker_server.py
+```
+2. Paste worker_server.py
+3. Create Controller Script
+```bash
+mkdir ~/cluster_project
+cd ~/cluster_project
+nano head_controller.py
+```
+4. Paste head_controller.py
 
-All VMs must be in the same VNet + subnet
+---
 
-Recommended: port 5000 open internally in your VNet
+# 5. Running the Distributed System
 
-No external libraries are required — only Python’s built-in socket, json, and threading.
-
-🚀 How to Run the Workers
-
-On worker-1 and worker-2, run:
-
+1. On worker-1 and worker-2:
+```bash
 python3 worker_server.py
-
-
-You should see:
-
-[WORKER] Listening on 0.0.0.0:5000
-
-
-Leave these terminals running.
-
-🚀 How to Run the Head Node
-
-On the head node, run:
-
+```
+2. On the head node:
+```bash
 python3 head_controller.py
+```
+Expected output:
 
+- Serial time: ~10 seconds
 
-You will see two parts:
+- Distributed time: ~5 seconds
 
-1. Serial run (single machine)
-
-Processes tasks one-by-one → slow.
-
-2. Distributed run
-
-Sends tasks to workers in parallel using threading → significantly faster.
-
-Sample output:
-
-== Serial run (single machine) ==
-Serial time: ~10 seconds
-
-== Distributed run (2 workers) ==
-Distributed time: ~5 seconds
-
-📡 Communication Flow
-
-Head node connects to workers via TCP (worker_ip:5000).
-
-Sends JSON tasks such as:
-
-{ "n": 6 }
-
-
-Worker computes n^2 (with simulated delay).
-
-Worker returns:
-
-{ "n": 6, "result": 36 }
-
-
-Head aggregates and prints results.
-
-📈 Performance Comparison
-Mode	Total Tasks	Time
-Serial (1 machine)	10 tasks	~10 seconds
-Distributed (2 workers)	10 tasks	~5 seconds
-
-This demonstrates real performance gain due to parallel task execution across multiple VMs.
+- Workers process tasks in parallel
